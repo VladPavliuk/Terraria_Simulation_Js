@@ -1,0 +1,310 @@
+<style type="text/css">
+	.data-table {
+		width: 100%;
+		float: left;
+		margin-right: 100px;
+	}
+
+	.data-table tr td {
+		padding: 10px;
+	}
+</style>
+<canvas id="canvas"></canvas>
+<div style="width: 600px; float: left;">
+	<table class="data-table" border="1">
+		<thead>
+			<tr>
+				<th>Bot #</th>
+				<th>Score</th>
+				<th>Location</th>
+				<th>Direction</th>
+				<th>Change Rate</th>
+				<th>See Food?</th>
+			</tr>
+		</thead>
+		<tbody></tbody>
+	</table>
+</div>
+<script type="text/javascript">
+	class Bot {
+		constructor(name) {
+			this.bot = {
+				name: name,
+				score: 0,
+				sensor: {
+					active: false,
+					target: {
+						location: {
+							x: null,
+							y: null
+						}
+					},
+					length: 50
+				},
+				direction: {
+					changeRate: 5,
+					currentChangeRate: 0,
+					speed: 5,
+					_innerAngle: 45,
+					set angle(value) {
+						this._innerAngle = value % 360;
+					},
+
+					get angle() {
+						return this._innerAngle;
+					}
+				},
+				location: {
+					x: globalConfigs.canvasElement.width / 2,
+					y: globalConfigs.canvasElement.height / 2
+				},
+				size: 10
+			};
+		}
+
+		get data() {
+			return this.bot;
+		}
+	}
+
+	var globalConfigs = {
+		canvasElement: {
+			getHtmlElement: () => document.getElementById('canvas'),
+			width: 500,
+			height: 500
+		},
+		context: null
+	};
+
+	if (globalConfigs.context === null) {
+		globalConfigs.context = globalConfigs.canvasElement.getHtmlElement().getContext('2d');
+	}
+
+	var context = globalConfigs.context;
+	var canvasElement = globalConfigs.canvasElement.getHtmlElement();
+	canvasElement.width = globalConfigs.canvasElement.width;
+	canvasElement.height = globalConfigs.canvasElement.height;
+
+	var dataDiagnostic = () => {
+		var tableElement = document.getElementsByClassName('data-table')[0];
+		var tableBodyElement = tableElement.getElementsByTagName('tbody')[0];
+		tableBodyElement.innerHTML = '';
+
+		for (var bot of bots) {
+			var row = document.createElement('tr');
+
+			var col_1 = document.createElement('td');
+			col_1.innerHTML = bot.name;
+
+			var col_6 = document.createElement('td');
+			col_6.innerHTML = bot.score;
+
+			var col_2 = document.createElement('td');
+			col_2.innerHTML = `${bot.location.x} | ${bot.location.y}`;
+
+			var col_3 = document.createElement('td');
+			col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.angle}<sup>o</sup>`;
+
+			var col_4 = document.createElement('td');
+			col_4.innerHTML = `${bot.direction.changeRate} | ${bot.direction.currentChangeRate}`;
+
+			var col_5 = document.createElement('td');
+			// col_5.innerHTML = bot.sensor.active ? `YES (${bot.sensor.target.location.x}; ${bot.sensor.target.location.y})` : 'NO';
+			col_5.innerHTML = bot.sensor.active ? `YES` : 'NO';
+
+			row.appendChild(col_1);
+			row.appendChild(col_6);
+			row.appendChild(col_2);
+			row.appendChild(col_3);
+			row.appendChild(col_4);
+			row.appendChild(col_5);
+
+			tableBodyElement.appendChild(row);
+		}
+	};
+
+	var drawMap = () => {
+		context.fillStyle = 'black';
+		context.fillRect(0, 0, canvasElement.width, canvasElement.height);
+	};
+
+	var fromPolarToCartesian = (length, angleInDegrees) => {
+		return {
+			x: length * Math.cos(angleInDegrees / 180 * Math.PI),
+			y: length * Math.sin(angleInDegrees / 180 * Math.PI)
+		};
+	};
+
+	var inCircle = (pointToCheck, circle) => {
+		return Math.pow(pointToCheck.x - circle.x, 2) + Math.pow(pointToCheck.y - circle.y, 2) <= Math.pow(circle
+			.radius, 2);
+	};
+
+	var distanceBetweenTwoPoints = (firstPoint, secondPoint) => {
+		return Math.pow(firstPoint.x - secondPoint.x, 2) + Math.pow(firstPoint.y - secondPoint.y, 2);
+	};
+
+	var getCircleCoordinates = (x, y, radius) => {
+		var result = [];
+
+		for (var i = 0; i < 2 * Math.PI; i += 0.05) {
+			result.push({
+				y: y + (radius * Math.sin(i)),
+				x: x + (radius * Math.cos(i)),
+			});
+		}
+
+		return result;
+	};
+
+	var drawFood = () => {
+		for (var foodItem of food.items) {
+			context.fillStyle = 'red';
+			context.fillRect(foodItem.x, foodItem.y, 5, 5);
+		}
+
+		if (food.foodSpawnCounter <= food.currentFoodSpawnCounter) {
+			var x = Math.round(Math.random() * globalConfigs.canvasElement.width);
+			var y = Math.round(Math.random() * globalConfigs.canvasElement.height);
+
+			context.fillStyle = 'red';
+			context.fillRect(x, y, 5, 5);
+
+			food.items.push({
+				x,
+				y
+			})
+			food.currentFoodSpawnCounter = 0;
+		} else {
+			food.currentFoodSpawnCounter++;
+		}
+	};
+
+	var searchBotTarget = bot => {
+		var botTargets = [];
+
+		for (var foodItem of food.items) {
+			var pointToCheck = {
+				x: foodItem.x,
+				y: foodItem.y,
+			};
+			var circle = {
+				x: bot.location.x,
+				y: bot.location.y,
+				radius: bot.sensor.length
+			};
+
+			if (inCircle(pointToCheck, circle)) {
+				botTargets.push({
+					location: foodItem,
+					distance: distanceBetweenTwoPoints({
+						x: foodItem.x,
+						y: foodItem.y
+					}, {
+						x: bot.location.x,
+						y: bot.location.y
+					})
+				});
+			}
+		}
+
+		if (botTargets.length === 0) {
+			bot.sensor.active = false;
+			return;
+		}
+		
+		bot.sensor.active = true;
+		var nearestTarget = botTargets[0];
+		
+		for (var target of botTargets) {
+			if (target.distance < nearestTarget.distance) {
+				nearestTarget = {
+					location: {
+						x: target.location.x,
+						y: target.location.y
+					},
+					distance: target.distance
+				}
+			}
+		}
+
+		bot.sensor.target.location.x = nearestTarget.location.x;
+		bot.sensor.target.location.y = nearestTarget.location.y;
+	};
+
+	var isBotReachAnyTarger = bot => {
+		for (var [index, foodItem] of food.items.entries()) {
+			if ((foodItem.x <= bot.location.x + bot.size + bot.direction.speed && bot.location.x <= foodItem.x + 5) &&
+				(foodItem.y <= bot.location.y + bot.size + bot.direction.speed && bot.location.y <= foodItem.y + 5)) {
+				food.items.splice(index, 1);
+				bot.score++;
+			}
+		}
+	};
+
+	var drawBots = () => {
+		for (var bot of bots) {
+			searchBotTarget(bot);
+			isBotReachAnyTarger(bot);
+			context.fillStyle = 'white';
+			context.fillRect(bot.location.x, bot.location.y, bot.size, bot.size);
+
+			context.fillStyle = 'blue';
+			var circleCoordinates = getCircleCoordinates(bot.location.x + bot.size / 2, bot.location.y + bot.size / 2,
+				bot.sensor.length);
+			for (var i = 0; i < circleCoordinates.length; i++) {
+				context.fillRect(circleCoordinates[i].x, circleCoordinates[i].y, 2, 2);
+			}
+
+			if (bot.location.y <= 0) {
+				bot.direction.angle = 90;
+			} else if (bot.location.y + bot.size >= globalConfigs.canvasElement.height) {
+				bot.direction.angle = 270;
+			}
+
+			if (bot.location.x <= 0) {
+				bot.direction.angle = 0;
+			} else if (bot.location.x + bot.size >= globalConfigs.canvasElement.width) {
+				bot.direction.angle = 180;
+			}
+
+			var locationChange = fromPolarToCartesian(bot.direction.speed, bot.direction.angle);
+
+			bot.location.y += Math.round(locationChange.y);
+			bot.location.x += Math.round(locationChange.x);
+
+			if (bot.sensor.active) {
+				var angleBetweenTargetAndBot = Math.atan2(bot.sensor.target.location.y - bot.location.y, bot.sensor
+					.target.location.x - bot.location.x);
+
+				bot.direction.angle = Math.round(angleBetweenTargetAndBot / Math.PI * 180);
+			} else {
+				if (bot.direction.currentChangeRate >= bot.direction.changeRate) {
+					bot.direction.angle = Math.round(Math.random() * 360);
+
+					bot.direction.currentChangeRate = 0;
+				}
+
+				bot.direction.currentChangeRate++;
+			}
+		}
+	};
+
+	var bots = [];
+	var food = {
+		items: [],
+		foodSpawnCounter: 20,
+		currentFoodSpawnCounter: 0
+	};
+
+	for (var i = 1; i <= 5; i++) {
+		bots.push(new Bot('Bot ' + i).data);
+	}
+
+	setInterval(() => {
+		dataDiagnostic();
+		drawMap();
+		drawFood();
+		drawBots();
+	}, 50);
+</script>
