@@ -3,7 +3,7 @@ let io = require('socket.io')(app);
 let fs = require('fs');
 let terraria = require('./terraria');
 
-app.listen(8000);
+app.listen(process.env.PORT || 8000);
 
 function handler (req, res) {
     fs.readFile(__dirname + '/index.html',
