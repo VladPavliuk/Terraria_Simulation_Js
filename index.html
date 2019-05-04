@@ -26,58 +26,26 @@
 		<tbody></tbody>
 	</table>
 </div>
+<script src="/socket.io/socket.io.js"></script>
 <script type="text/javascript">
-	class Bot {
-		constructor(name) {
-			this.bot = {
-				name: name,
-				health: {
-					value: 100
-				},
-				sensor: {
-					active: false,
-					target: {
-						location: {
-							x: null,
-							y: null
-						}
-					},
-					length: 50
-				},
-				direction: {
-					changeRate: 5,
-					currentChangeRate: 0,
-					speed: 5,
-					_innerAngle: 45,
-					set angle(value) {
-						this._innerAngle = value % 360;
-					},
+	var socket = io('/');
+	socket.on('data', function (data) {
+		bots = data.bots;
+		food = data.targets;
 
-					get angle() {
-						return this._innerAngle;
-					}
-				},
-				location: {
-					x: globalConfigs.canvasElement.width / 2,
-					y: globalConfigs.canvasElement.height / 2
-				},
-				size: 10
-			};
-		}
-
-		get data() {
-			return this.bot;
-		}
-	}
-
+		dataDiagnostic();
+		drawMap();
+		drawFood();
+		drawBots();
+	});
+</script>
+<script type="text/javascript">
 	var globalConfigs = {
 		canvasElement: {
 			getHtmlElement: () => document.getElementById('canvas'),
-			width: 500,
-			height: 500
+			width: 600,
+			height: 600
 		},
-		yearIterations: 30,
-		currentYearIterations: 0,
 		context: null
 	};
 
@@ -111,13 +79,14 @@
 			col_2.innerHTML = `${bot.location.x} | ${bot.location.y}`;
 
 			var col_3 = document.createElement('td');
-			col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.angle}<sup>o</sup>`;
+			// col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.angle}<sup>o</sup>`;
+			col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.changeRate}`;
 
 			var col_4 = document.createElement('td');
 			col_4.innerHTML = bot.sensor.length;
 
 			var col_5 = document.createElement('td');
-			// col_5.innerHTML = bot.sensor.active ? `YES (${bot.sensor.target.location.x}; ${bot.sensor.target.location.y})` : 'NO';
+			// col_5.innerHTML = bot.sensor.active ? `YES (${bot.sensor.target.distance})` : 'NO';
 			col_5.innerHTML = bot.sensor.active ? `YES` : 'NO';
 
 			var col_7 = document.createElement('td');
@@ -146,15 +115,6 @@
 		};
 	};
 
-	var inCircle = (pointToCheck, circle) => {
-		return Math.pow(pointToCheck.x - circle.x, 2) + Math.pow(pointToCheck.y - circle.y, 2) <= Math.pow(circle
-			.radius, 2);
-	};
-
-	var distanceBetweenTwoPoints = (firstPoint, secondPoint) => {
-		return Math.pow(firstPoint.x - secondPoint.x, 2) + Math.pow(firstPoint.y - secondPoint.y, 2);
-	};
-
 	var getCircleCoordinates = (x, y, radius) => {
 		var result = [];
 
@@ -171,119 +131,12 @@
 	var drawFood = () => {
 		for (var foodItem of food.items) {
 			context.fillStyle = 'red';
-			context.fillRect(foodItem.x, foodItem.y, 5, 5);
-		}
-
-		if (food.foodSpawnCounter <= food.currentFoodSpawnCounter) {
-			var x = Math.round(Math.random() * globalConfigs.canvasElement.width);
-			var y = Math.round(Math.random() * globalConfigs.canvasElement.height);
-
-			context.fillStyle = 'red';
-			context.fillRect(x, y, 5, 5);
-
-			food.items.push({
-				x,
-				y
-			})
-			food.currentFoodSpawnCounter = 0;
-		} else {
-			food.currentFoodSpawnCounter++;
-		}
-	};
-
-	var makeBotsOlder = bots => {
-		for (bot of bots) {
-			var speedFactor = bot.direction.speed;
-			var sensorLengthFactor = bot.sensor.length / 10;
-
-			bot.health.value -= Math.round(speedFactor + sensorLengthFactor);
-		}
-	};
-
-	var searchBotTarget = bot => {
-		var botTargets = [];
-
-		for (var foodItem of food.items) {
-			var pointToCheck = {
-				x: foodItem.x,
-				y: foodItem.y,
-			};
-			var circle = {
-				x: bot.location.x,
-				y: bot.location.y,
-				radius: bot.sensor.length
-			};
-
-			if (inCircle(pointToCheck, circle)) {
-				botTargets.push({
-					location: foodItem,
-					distance: distanceBetweenTwoPoints({
-						x: foodItem.x,
-						y: foodItem.y
-					}, {
-						x: bot.location.x,
-						y: bot.location.y
-					})
-				});
-			}
-		}
-
-		if (botTargets.length === 0) {
-			bot.sensor.active = false;
-			return;
-		}
-		
-		bot.sensor.active = true;
-		var nearestTarget = botTargets[0];
-		
-		for (var target of botTargets) {
-			if (target.distance < nearestTarget.distance) {
-				nearestTarget = {
-					location: {
-						x: target.location.x,
-						y: target.location.y
-					},
-					distance: target.distance
-				}
-			}
-		}
-
-		bot.sensor.target.location.x = nearestTarget.location.x;
-		bot.sensor.target.location.y = nearestTarget.location.y;
-	};
-
-	var isBotReachAnyTarger = bot => {
-		for (var [index, foodItem] of food.items.entries()) {
-			if ((foodItem.x <= bot.location.x + bot.size + bot.direction.speed && bot.location.x <= foodItem.x + 5) &&
-				(foodItem.y <= bot.location.y + bot.size + bot.direction.speed && bot.location.y <= foodItem.y + 5)) {
-				food.items.splice(index, 1);
-				bot.health.value += 50;
-			}
+			context.fillRect(foodItem.location.x, foodItem.location.y, 5, 5);
 		}
 	};
 
 	var drawBots = () => {
-		globalConfigs.currentYearIterations++;
-		
-		if (globalConfigs.currentYearIterations >= globalConfigs.yearIterations) {
-				makeBotsOlder(bots);
-				globalConfigs.currentYearIterations = 0;
-		} 
-
-		for (var [index, bot] of bots.entries()) {
-			if (bot.health.value <= 0) {
-				bots.splice(index, 1)
-			} else if (bot.health.value >= 200) {
-				var newBot = new Bot('Bot ' + bots.length).data;
-				newBot.direction.speed = bot.direction.speed + Math.round(Math.random() * 4 - 2);
-				newBot.sensor.length = bot.sensor.length + Math.round(Math.random() * 4 - 2);
-				
-				bots.push(newBot);
-				bot.health.value = 50;
-			}
-
-			searchBotTarget(bot);
-			isBotReachAnyTarger(bot);
+		for (var bot of bots) {
 			context.fillStyle = 'white';
 			context.fillRect(bot.location.x, bot.location.y, bot.size, bot.size);
 
@@ -294,55 +147,13 @@
 				context.fillRect(circleCoordinates[i].x, circleCoordinates[i].y, 2, 2);
 			}
 
-			if (bot.location.y <= 0) {
-				bot.direction.angle = 90;
-			} else if (bot.location.y + bot.size >= globalConfigs.canvasElement.height) {
-				bot.direction.angle = 270;
-			}
-
-			if (bot.location.x <= 0) {
-				bot.direction.angle = 0;
-			} else if (bot.location.x + bot.size >= globalConfigs.canvasElement.width) {
-				bot.direction.angle = 180;
-			}
-
 			var locationChange = fromPolarToCartesian(bot.direction.speed, bot.direction.angle);
 
 			bot.location.y += Math.round(locationChange.y);
 			bot.location.x += Math.round(locationChange.x);
-
-			if (bot.sensor.active) {
-				var angleBetweenTargetAndBot = Math.atan2(bot.sensor.target.location.y - bot.location.y, bot.sensor
-					.target.location.x - bot.location.x);
-
-				bot.direction.angle = Math.round(angleBetweenTargetAndBot / Math.PI * 180);
-			} else {
-				if (bot.direction.currentChangeRate >= bot.direction.changeRate) {
-					bot.direction.angle = Math.round(Math.random() * 360);
-
-					bot.direction.currentChangeRate = 0;
-				}
-
-				bot.direction.currentChangeRate++;
-			}
 		}
 	};
 
 	var bots = [];
-	var food = {
-		items: [],
-		foodSpawnCounter: 10,
-		currentFoodSpawnCounter: 0
-	};
-
-	for (var i = 1; i <= 50; i++) {
-		bots.push(new Bot('Bot ' + i).data);
-	}
-
-	setInterval(() => {
-		dataDiagnostic();
-		drawMap();
-		drawFood();
-		drawBots();
-	}, 50);
+	var food = {};
 </script>
