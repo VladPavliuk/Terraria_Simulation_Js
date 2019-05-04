@@ -4,46 +4,40 @@ let responseBody = {
     targets: []
 };
 
-class Bot {
-    constructor(name) {
-        this.bot = {
-            name: name,
-            health: {
-                value: 100
+let botBlueprint = function (name) {
+    return {
+        name: name,
+        health: {
+            value: 100
+        },
+        sensor: {
+            active: false,
+            targetId: null,
+            length: 50
+        },
+        direction: {
+            changeRate: 5,
+            currentChangeRate: 0,
+            speed: 5,
+            _innerAngle: 45,
+            set angle(value) {
+                this._innerAngle = value % 360;
             },
-            sensor: {
-                active: false,
-                targetId: null,
-                length: 50
-            },
-            direction: {
-                changeRate: 5,
-                currentChangeRate: 0,
-                speed: 5,
-                _innerAngle: 45,
-                set angle(value) {
-                    this._innerAngle = value % 360;
-                },
 
-                get angle() {
-                    return this._innerAngle;
-                }
-            },
-            location: {
-                x: globalConfigs.canvasElement.width / 2,
-                y: globalConfigs.canvasElement.height / 2
-            },
-            size: 10
-        };
-    }
+            get angle() {
+                return this._innerAngle;
+            }
+        },
+        location: {
+            x: globalConfigs.map.width / 2,
+            y: globalConfigs.map.height / 2
+        },
+        size: 10
+    };
+};
 
-    get data() {
-        return this.bot;
-    }
-}
-
-var globalConfigs = {
-    canvasElement: {
+let globalConfigs = {
+    map: {
         width: 600,
         height: 600
     },
@@ -51,27 +45,28 @@ var globalConfigs = {
     includeHealthReducing: true,
     yearIterations: 30,
     currentYearIterations: 0,
+    greatStarvationsAmount: -1,
     context: null
 };
 
-var fromPolarToCartesian = (length, angleInDegrees) => {
+let fromPolarToCartesian = (length, angleInDegrees) => {
     return {
         x: length * Math.cos(angleInDegrees / 180 * Math.PI),
         y: length * Math.sin(angleInDegrees / 180 * Math.PI)
     };
 };
 
-var inCircle = (pointToCheck, circle) => {
+let inCircle = (pointToCheck, circle) => {
     return Math.pow(pointToCheck.x - circle.x, 2) + Math.pow(pointToCheck.y - circle.y, 2) <= Math.pow(circle
         .radius, 2);
 };
 
-var distanceBetweenTwoPoints = (firstPoint, secondPoint) => {
+let distanceBetweenTwoPoints = (firstPoint, secondPoint) => {
     return Math.round(Math.sqrt(Math.pow(firstPoint.x - secondPoint.x, 2) + Math.pow(firstPoint.y - secondPoint.y, 2)));
 };
 
-var distanceBetweenTwoRectangles = (firstRect, secondRect) => {
-    var horizontalDistance = 0;
+let distanceBetweenTwoRectangles = (firstRect, secondRect) => {
+    let horizontalDistance = 0;
 
     if (secondRect.x1 > firstRect.x2) {
         horizontalDistance = secondRect.x1 - firstRect.x2;
@@ -79,7 +74,7 @@ var distanceBetweenTwoRectangles = (firstRect, secondRect) => {
         horizontalDistance = firstRect.x1 - secondRect.x2;
     }
 
-    var verticalDistance = 0;
+    let verticalDistance = 0;
 
     if (secondRect.y1 > firstRect.y2) {
         verticalDistance = secondRect.y1 - firstRect.y2;
@@ -90,58 +85,45 @@ var distanceBetweenTwoRectangles = (firstRect, secondRect) => {
     return Math.round(Math.sqrt(Math.pow(horizontalDistance, 2) + Math.pow(verticalDistance, 2)));
 };
 
-var getCircleCoordinates = (x, y, radius) => {
-    var result = [];
+let calculateTargets = targets => {
+    if (targets.spawn.threshold <= targets.spawn.counter) {
+        let x = Math.round(Math.random() * globalConfigs.map.width);
+        let y = Math.round(Math.random() * globalConfigs.map.height);
 
-    for (var i = 0; i < 2 * Math.PI; i += 0.05) {
-        result.push({
-            y: y + (radius * Math.sin(i)),
-            x: x + (radius * Math.cos(i)),
-        });
-    }
-
-    return result;
-};
-
-var drawFood = () => {
-    if (food.foodSpawnCounter <= food.currentFoodSpawnCounter) {
-        var x = Math.round(Math.random() * globalConfigs.canvasElement.width);
-        var y = Math.round(Math.random() * globalConfigs.canvasElement.height);
-
-        food.items.push({
-            id: food.primaryIndexCounter,
+        targets.items.push({
+            id: targets.primaryIndexCounter,
             location: {
                 x,
                 y
             }
         });
-        food.currentFoodSpawnCounter = 0;
-        food.primaryIndexCounter++;
+        targets.spawn.counter = 0;
+        targets.primaryIndexCounter++;
     } else {
-        food.currentFoodSpawnCounter++;
+        targets.spawn.counter++;
     }
 };
 
-var makeBotsOlder = bots => {
+let makeBotsOlder = bots => {
     if (globalConfigs.includeHealthReducing) {
-        for (bot of bots) {
-            var speedFactor = bot.direction.speed;
-            var sensorLengthFactor = bot.sensor.length / 10;
+        for (let bot of bots) {
+            let speedFactor = bot.direction.speed;
+            let sensorLengthFactor = bot.sensor.length / 10;
 
             bot.health.value -= Math.round(speedFactor + sensorLengthFactor);
         }
     }
 };
 
-var searchBotTarget = bot => {
-    var botTargets = [];
+let searchBotTarget = (bot, targets) => {
+    let botTargets = [];
 
-    for (var foodItem of food.items) {
-        var pointToCheck = {
-            x: foodItem.location.x,
-            y: foodItem.location.y,
+    for (let target of targets.items) {
+        let pointToCheck = {
+            x: target.location.x,
+            y: target.location.y,
         };
-        var circle = {
+        let circle = {
             x: bot.location.x,
             y: bot.location.y,
             radius: bot.sensor.length
@@ -149,10 +131,10 @@ var searchBotTarget = bot => {
 
         if (inCircle(pointToCheck, circle)) {
             botTargets.push({
-                id: foodItem.id,
+                id: target.id,
                 distance: distanceBetweenTwoPoints({
-                    x: foodItem.location.x,
-                    y: foodItem.location.y
+                    x: target.location.x,
+                    y: target.location.y
                 }, {
                     x: bot.location.x,
                     y: bot.location.y
@@ -167,9 +149,9 @@ var searchBotTarget = bot => {
     }
 
     bot.sensor.active = true;
-    var nearestTarget = botTargets[0];
+    let nearestTarget = botTargets[0];
 
-    for (var target of botTargets) {
+    for (let target of botTargets) {
         if (target.distance < nearestTarget.distance) {
             nearestTarget = {
                 id: target.id
@@ -180,40 +162,40 @@ var searchBotTarget = bot => {
     bot.sensor.targetId = nearestTarget.id;
 };
 
-var getTargetById = id => {
-    var element = food.items.find(element => element.id === id);
+let getTargetById = (id, targets) => {
+    let element = targets.items.find(element => element.id === id);
 
     if (element === undefined)
         return null;
 
     return {
         element,
-        key: food.items.findIndex(element => element.id === id)
+        key: targets.items.findIndex(element => element.id === id)
     };
 };
 
-var isBotReachAnyTarget = bot => {
-    for (var [index, foodItem] of food.items.entries()) {
-        var distance = distanceBetweenTwoRectangles({
+let isBotReachAnyTarget = (bot, targets) => {
+    for (let [index, target] of targets.items.entries()) {
+        let distance = distanceBetweenTwoRectangles({
             x1: bot.location.x,
             y1: bot.location.y,
             x2: bot.location.x + bot.size,
             y2: bot.location.y + bot.size
         }, {
-            x1: foodItem.location.x,
-            y1: foodItem.location.y,
-            x2: foodItem.location.x + 5,
-            y2: foodItem.location.y + 5
+            x1: target.location.x,
+            y1: target.location.y,
+            x2: target.location.x + 5,
+            y2: target.location.y + 5
         });
 
         if (distance <= bot.direction.speed) {
-            food.items.splice(index, 1);
+            targets.items.splice(index, 1);
             bot.health.value += 50;
         }
     }
 };
 
-var drawBots = () => {
+let calculateBots = bots => {
     globalConfigs.currentYearIterations++;
 
     if (globalConfigs.currentYearIterations >= globalConfigs.yearIterations) {
@@ -222,14 +204,15 @@ var drawBots = () => {
     }
 
     if (bots.length === 0) {
-        bots.push(new Bot('Bot 1').data);
+        bots.push(new botBlueprint('Bot 1'));
+        globalConfigs.greatStarvationsAmount++;
     }
 
-    for (var [index, bot] of bots.entries()) {
+    for (let [index, bot] of bots.entries()) {
         if (bot.health.value <= 0) {
             bots.splice(index, 1)
         } else if (globalConfigs.includeChildrenGeneration && bot.health.value >= 200) {
-            var newBot = new Bot('Bot ' + bots.length).data;
+            let newBot = new botBlueprint('Bot ' + bots.length);
             newBot.direction.speed = bot.direction.speed + Math.round(Math.random() * 4 - 2);
             newBot.sensor.length = bot.sensor.length + Math.round(Math.random() * 4 - 2);
             newBot.direction.changeRate = bot.direction.changeRate + Math.round(Math.random() * 2 - 1);
@@ -237,34 +220,32 @@ var drawBots = () => {
             bot.health.value = 50;
         }
 
-        searchBotTarget(bot);
-        isBotReachAnyTarget(bot);
-        var circleCoordinates = getCircleCoordinates(bot.location.x + bot.size / 2, bot.location.y + bot.size / 2,
-            bot.sensor.length);
+        searchBotTarget(bot, targets);
+        isBotReachAnyTarget(bot, targets);
 
         if (bot.location.y <= 0) {
             bot.direction.angle = 90;
-        } else if (bot.location.y + bot.size >= globalConfigs.canvasElement.height) {
+        } else if (bot.location.y + bot.size >= globalConfigs.map.height) {
             bot.direction.angle = 270;
         }
 
         if (bot.location.x <= 0) {
             bot.direction.angle = 0;
-        } else if (bot.location.x + bot.size >= globalConfigs.canvasElement.width) {
+        } else if (bot.location.x + bot.size >= globalConfigs.map.width) {
             bot.direction.angle = 180;
         }
 
-        var locationChange = fromPolarToCartesian(bot.direction.speed, bot.direction.angle);
+        let locationChange = fromPolarToCartesian(bot.direction.speed, bot.direction.angle);
 
         bot.location.y += Math.round(locationChange.y);
         bot.location.x += Math.round(locationChange.x);
 
         if (bot.sensor.active) {
-            var target = getTargetById(bot.sensor.targetId);
+            let target = getTargetById(bot.sensor.targetId, targets);
 
             if (target) {
                 target = target.element;
-                var angleBetweenTargetAndBot = Math.atan2(target.location.y - bot.location.y, target.location.x - bot.location.x);
+                let angleBetweenTargetAndBot = Math.atan2(target.location.y - bot.location.y, target.location.x - bot.location.x);
 
                 bot.direction.angle = Math.round(angleBetweenTargetAndBot / Math.PI * 180);
             }
@@ -280,24 +261,27 @@ var drawBots = () => {
     }
 };
 
-var bots = [];
-var food = {
+let bots = [];
+let targets = {
     items: [],
-    primaryIndexCounter: 1,
-    foodSpawnCounter: 10,
-    currentFoodSpawnCounter: 0
+    spawn: {
+        threshold: 10,
+        counter: 0
+    },
+    primaryIndexCounter: 1
 };
 
-var writeResponse = () => {
+let writeResponse = () => {
     responseBody = {
         bots,
-        targets: food
+        targets,
+        greatStarvationsAmount: globalConfigs.greatStarvationsAmount
     };
 };
 
 setInterval(() => {
-    drawFood();
-    drawBots();
+    calculateTargets(targets);
+    calculateBots(bots, targets);
     writeResponse();
 
     module.exports.data = responseBody;

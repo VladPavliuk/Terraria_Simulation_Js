@@ -1,173 +1,177 @@
 <!doctype html>
 <html lang="en">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport"
-		  content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-	<meta http-equiv="X-UA-Compatible" content="ie=edge">
-	<title>Terraria</title>
-	<style type="text/css">
-		.data-table {
-			width: 100%;
-			float: left;
-			margin-right: 100px;
-		}
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Terraria</title>
+    <style type="text/css">
+        .data-table {
+            width: 100%;
+            float: left;
+            margin-right: 100px;
+        }
 
-		.data-table tr td {
-			padding: 10px;
-		}
-	</style>
+        .data-table tr td {
+            padding: 10px;
+        }
+    </style>
 </head>
 <body>
-	<canvas id="canvas"></canvas>
-	<div style="width: 600px; float: left;">
-		<p>Amount of bots: <b id="bots-amount"></b></p>
-		<table class="data-table" border="1">
-			<thead>
-			<tr>
-				<th>Bot #</th>
-				<th>Health</th>
-				<th>Location</th>
-				<th>Direction</th>
-				<th>Sensor</th>
-				<th>See Food?</th>
-			</tr>
-			</thead>
-			<tbody></tbody>
-		</table>
-	</div>
+<canvas id="canvas"></canvas>
+<div style="width: 600px; float: left;">
+    <p>Amount of bots: <b id="bots-amount"></b></p>
+    <p>Great starvations amount: <b id="great-starvations-amount"></b></p>
+    <table class="data-table" border="1">
+        <thead>
+        <tr>
+            <th>Bot #</th>
+            <th>Health</th>
+            <th>Location</th>
+            <th>Direction</th>
+            <th>Sensor</th>
+            <th>See Food?</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
 
-	<script src="/socket.io/socket.io.js"></script>
-	<script type="text/javascript">
-		var socket = io('/');
-		socket.on('data', function (data) {
-			bots = data.bots;
-			food = data.targets;
+<script src="/socket.io/socket.io.js"></script>
+<script type="text/javascript">
+    var socket = io('/');
+    socket.on('data', function (data) {
+        bots = data.bots;
+        food = data.targets;
 
-			dataDiagnostic();
-			drawMap();
-			drawFood();
-			drawBots();
-		});
-	</script>
-	<script type="text/javascript">
-		var globalConfigs = {
-			canvasElement: {
-				getHtmlElement: () => document.getElementById('canvas'),
-				width: 600,
-				height: 600
-			},
-			context: null
-		};
+        dataDiagnostic(data.greatStarvationsAmount);
+        drawMap();
+        drawFood();
+        drawBots();
+    });
+</script>
+<script type="text/javascript">
+    var globalConfigs = {
+        canvasElement: {
+            getHtmlElement: () => document.getElementById('canvas'),
+            width: 600,
+            height: 600
+        },
+        context: null
+    };
 
-		if (globalConfigs.context === null) {
-			globalConfigs.context = globalConfigs.canvasElement.getHtmlElement().getContext('2d');
-		}
+    if (globalConfigs.context === null) {
+        globalConfigs.context = globalConfigs.canvasElement.getHtmlElement().getContext('2d');
+    }
 
-		var context = globalConfigs.context;
-		var canvasElement = globalConfigs.canvasElement.getHtmlElement();
-		canvasElement.width = globalConfigs.canvasElement.width;
-		canvasElement.height = globalConfigs.canvasElement.height;
+    var context = globalConfigs.context;
+    var canvasElement = globalConfigs.canvasElement.getHtmlElement();
+    canvasElement.width = globalConfigs.canvasElement.width;
+    canvasElement.height = globalConfigs.canvasElement.height;
 
-		var dataDiagnostic = () => {
-			var botsAmountElement = document.getElementById('bots-amount');
-			botsAmountElement.innerHTML = bots.length;
+    var dataDiagnostic = greatStarvationsAmount => {
+        var botsAmountElement = document.getElementById('bots-amount');
+        botsAmountElement.innerHTML = bots.length;
 
-			var tableElement = document.getElementsByClassName('data-table')[0];
-			var tableBodyElement = tableElement.getElementsByTagName('tbody')[0];
-			tableBodyElement.innerHTML = '';
+        var greatStarvationsAmountElement = document.getElementById('great-starvations-amount');
+        greatStarvationsAmountElement.innerHTML = greatStarvationsAmount;
 
-			for (var bot of bots) {
-				var row = document.createElement('tr');
+        var tableElement = document.getElementsByClassName('data-table')[0];
+        var tableBodyElement = tableElement.getElementsByTagName('tbody')[0];
+        tableBodyElement.innerHTML = '';
 
-				var col_1 = document.createElement('td');
-				col_1.innerHTML = bot.name;
+        for (var bot of bots) {
+            var row = document.createElement('tr');
 
-				var col_6 = document.createElement('td');
-				col_6.innerHTML = bot.health.value;
+            var col_1 = document.createElement('td');
+            col_1.innerHTML = bot.name;
 
-				var col_2 = document.createElement('td');
-				col_2.innerHTML = `${bot.location.x} | ${bot.location.y}`;
+            var col_6 = document.createElement('td');
+            col_6.innerHTML = bot.health.value;
 
-				var col_3 = document.createElement('td');
-				// col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.angle}<sup>o</sup>`;
-				col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.changeRate}`;
+            var col_2 = document.createElement('td');
+            col_2.innerHTML = `${bot.location.x} | ${bot.location.y}`;
 
-				var col_4 = document.createElement('td');
-				col_4.innerHTML = bot.sensor.length;
+            var col_3 = document.createElement('td');
+            // col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.angle}<sup>o</sup>`;
+            col_3.innerHTML = `${bot.direction.speed} | ${bot.direction.changeRate}`;
 
-				var col_5 = document.createElement('td');
-				// col_5.innerHTML = bot.sensor.active ? `YES (${bot.sensor.target.distance})` : 'NO';
-				col_5.innerHTML = bot.sensor.active ? `YES` : 'NO';
+            var col_4 = document.createElement('td');
+            col_4.innerHTML = bot.sensor.length;
 
-				var col_7 = document.createElement('td');
-				col_7.innerHTML = bot.health.value;
+            var col_5 = document.createElement('td');
+            // col_5.innerHTML = bot.sensor.active ? `YES (${bot.sensor.target.distance})` : 'NO';
+            col_5.innerHTML = bot.sensor.active ? `YES` : 'NO';
 
-				row.appendChild(col_1);
-				row.appendChild(col_6);
-				row.appendChild(col_2);
-				row.appendChild(col_3);
-				row.appendChild(col_4);
-				row.appendChild(col_5);
+            var col_7 = document.createElement('td');
+            col_7.innerHTML = bot.health.value;
 
-				tableBodyElement.appendChild(row);
-			}
-		};
+            row.appendChild(col_1);
+            row.appendChild(col_6);
+            row.appendChild(col_2);
+            row.appendChild(col_3);
+            row.appendChild(col_4);
+            row.appendChild(col_5);
 
-		var drawMap = () => {
-			context.fillStyle = 'black';
-			context.fillRect(0, 0, canvasElement.width, canvasElement.height);
-		};
+            tableBodyElement.appendChild(row);
+        }
+    };
 
-		var fromPolarToCartesian = (length, angleInDegrees) => {
-			return {
-				x: length * Math.cos(angleInDegrees / 180 * Math.PI),
-				y: length * Math.sin(angleInDegrees / 180 * Math.PI)
-			};
-		};
+    var drawMap = () => {
+        context.fillStyle = 'black';
+        context.fillRect(0, 0, canvasElement.width, canvasElement.height);
+    };
 
-		var getCircleCoordinates = (x, y, radius) => {
-			var result = [];
+    var fromPolarToCartesian = (length, angleInDegrees) => {
+        return {
+            x: length * Math.cos(angleInDegrees / 180 * Math.PI),
+            y: length * Math.sin(angleInDegrees / 180 * Math.PI)
+        };
+    };
 
-			for (var i = 0; i < 2 * Math.PI; i += 0.05) {
-				result.push({
-					y: y + (radius * Math.sin(i)),
-					x: x + (radius * Math.cos(i)),
-				});
-			}
+    var getCircleCoordinates = (x, y, radius) => {
+        var result = [];
 
-			return result;
-		};
+        for (var i = 0; i < 2 * Math.PI; i += 0.05) {
+            result.push({
+                y: y + (radius * Math.sin(i)),
+                x: x + (radius * Math.cos(i)),
+            });
+        }
 
-		var drawFood = () => {
-			for (var foodItem of food.items) {
-				context.fillStyle = 'red';
-				context.fillRect(foodItem.location.x, foodItem.location.y, 5, 5);
-			}
-		};
+        return result;
+    };
 
-		var drawBots = () => {
-			for (var bot of bots) {
-				context.fillStyle = 'white';
-				context.fillRect(bot.location.x, bot.location.y, bot.size, bot.size);
+    var drawFood = () => {
+        for (var foodItem of food.items) {
+            context.fillStyle = 'red';
+            context.fillRect(foodItem.location.x, foodItem.location.y, 5, 5);
+        }
+    };
 
-				context.fillStyle = 'blue';
-				var circleCoordinates = getCircleCoordinates(bot.location.x + bot.size / 2, bot.location.y + bot.size / 2,
-						bot.sensor.length);
-				for (var i = 0; i < circleCoordinates.length; i++) {
-					context.fillRect(circleCoordinates[i].x, circleCoordinates[i].y, 2, 2);
-				}
+    var drawBots = () => {
+        for (var bot of bots) {
+            context.fillStyle = 'white';
+            context.fillRect(bot.location.x, bot.location.y, bot.size, bot.size);
 
-				var locationChange = fromPolarToCartesian(bot.direction.speed, bot.direction.angle);
+            context.fillStyle = 'blue';
+            var circleCoordinates = getCircleCoordinates(bot.location.x + bot.size / 2, bot.location.y + bot.size / 2,
+                bot.sensor.length);
+            for (var i = 0; i < circleCoordinates.length; i++) {
+                context.fillRect(circleCoordinates[i].x, circleCoordinates[i].y, 2, 2);
+            }
 
-				bot.location.y += Math.round(locationChange.y);
-				bot.location.x += Math.round(locationChange.x);
-			}
-		};
+            var locationChange = fromPolarToCartesian(bot.direction.speed, bot.direction.angle);
 
-		var bots = [];
-		var food = {};
-	</script>
+            bot.location.y += Math.round(locationChange.y);
+            bot.location.x += Math.round(locationChange.x);
+        }
+    };
+
+    var bots = [];
+    var food = {};
+</script>
 </body>
 </html>
 
